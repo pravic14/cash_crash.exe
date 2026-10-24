@@ -7,6 +7,7 @@ Shared fixtures. A owns the policy property test. Anyone can add a scam or injec
 | File | Owner | Role |
 | --- | --- | --- |
 | `test_policy.py` | A | Random proposals from any session never move money from an unowned account, and never move money without a valid capability token. |
+| `test_rag_llm.py` | C | Scam-card retrieval, policy citation, the quarantined parser, and the explainer. Runs with `LLM_MODE=off`. |
 | `attack_corpus.jsonl` | B + C | Prompt-injection attempts. One JSON object per line. Fed to M1 and the quarantined parser. |
 | `scam_scenarios.jsonl` | B + C | The 40 scam / 40 legitimate / 50 injection sets, or a growing stand-in until those counts exist. |
 

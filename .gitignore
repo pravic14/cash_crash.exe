@@ -8,5 +8,6 @@ venv/
 *.sqlite3
 ml/models/**
 !ml/models/.gitkeep
+rag/index/attack_memory.npz
 .idea/
 .vscode/

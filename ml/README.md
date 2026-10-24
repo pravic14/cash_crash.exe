@@ -28,3 +28,10 @@ Report the false-positive rate on legitimate payments. Banks care about friction
 ## First checkpoint
 
 Generator plus an M2 and M3 baseline, before the LLM is wired. Policy-only must still be able to demo.
+
+## Transaction generator
+
+`gen_transactions.py` creates synthetic transaction data for five customers.
+It generates 270 normal and 30 suspicious transactions for each customer.
+The transactions are saved to `data/transactions.csv` with useful labels.
+Run `python ml/gen_transactions.py` to generate the dataset and print a summary.

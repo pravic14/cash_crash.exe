@@ -1,0 +1,16 @@
+{
+  "payee-landlord": {
+    "name": "City Lettings",
+    "reference": "RENT",
+    "known_by": ["acc-margaret"],
+    "mule": false,
+    "typical_amount": 750.0
+  },
+  "payee-mule": {
+    "name": "Quick Cash Ltd",
+    "reference": "",
+    "known_by": [],
+    "mule": true,
+    "typical_amount": null
+  }
+}

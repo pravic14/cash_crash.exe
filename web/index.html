@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>cash_crash.exe</title>
+  <style>
+    :root{--pink:#f71887;--purple:#6e28b5;--paper:#fff5fc;--ink:#280035;--header:78px;--task:54px}*{box-sizing:border-box}html{min-height:100%}body{min-height:100vh;margin:0;padding:var(--header) 0 var(--task);overflow-x:hidden;font:15px Verdana,sans-serif;color:var(--ink);background:radial-gradient(#fff 0 2px,transparent 3px) 0 0/28px 28px,linear-gradient(135deg,#ffc3e1,#c9aaff,#ff8fc9)}
+    .site-header,.taskbar{position:fixed;z-index:100;width:100%;color:#fff}.site-header{top:0;height:var(--header);padding:10px 24px;border-bottom:3px ridge #fff;background:linear-gradient(90deg,var(--purple),var(--pink),var(--purple))}.brand{font:bold italic clamp(25px,4vw,39px) Georgia,serif;text-shadow:2px 2px #4e1266}.brand small{display:block;font:10px Verdana;letter-spacing:2px}.nav{position:absolute;right:20px;top:29px}.nav a{margin-left:14px;color:#fff;font-weight:bold}
+    .desktop{position:relative;min-height:calc(100vh - var(--header) - var(--task));padding:44px 8vw 110px}.window{position:relative;width:min(560px,90vw);margin:7vh auto 0;border:3px solid #260038;box-shadow:8px 8px #7131a7,15px 15px #ffc6e2;background:var(--paper);touch-action:none}.window:before,.window:after{content:"";position:absolute;z-index:-1;inset:-3px 28px 0 -28px;border:3px solid #260038;box-shadow:8px 8px #995cc6;background:#f5c9e3;transform:translate(-24px,22px)}.window:after{inset:-3px 54px 0 -54px;transform:translate(-24px,44px);opacity:.65}.bar{cursor:grab;padding:8px;color:#fff;font-weight:bold;user-select:none;background:linear-gradient(90deg,var(--pink),var(--purple))}.bar:active{cursor:grabbing}.content{padding:24px}.content h1{margin:0;color:var(--purple);font:italic bold 29px Georgia,serif}.button{display:inline-block;margin:10px 8px 0 0;padding:11px 16px;border:3px outset #ffe3f2;color:#fff;text-decoration:none;font-weight:bold;background:linear-gradient(#ff78bc,#8e32bb)}
+    .taskbar{bottom:0;height:var(--task);padding:9px 12px;border-top:3px ridge #fff;background:linear-gradient(90deg,#53237d,#ba3e96,#ff75bd)}.start{padding:7px 11px;border:2px outset #fff;background:#7536a8;font-weight:bold}.light{display:inline-block;width:12px;height:12px;border:2px solid #4a145e;border-radius:50%;background:#ffca2d}.status{float:right;font-size:12px}@media(max-width:600px){:root{--header:100px}.site-header{height:var(--header)}.nav{top:59px;right:12px}.desktop{padding:24px 5vw 100px}.window{margin-top:4vh}}
+  </style>
+</head>
+<body>
+  <!-- Text branding and CSS window chrome are intentional original placeholders: replace only with original/licensed assets. -->
+  <header class="site-header"><div class="brand">cash_crash.exe <small>SECURE PAYMENT CONSOLE</small></div><nav class="nav"><a href="./login.html">Login</a><a href="./signup.html">Sign up</a></nav></header>
+  <main class="desktop">
+    <!-- This public window is draggable; login/signup links are ordinary relative paths so they work via a static HTTP server. -->
+    <section class="window" id="welcome-window"><div class="bar">◆ Login required <span style="float:right">— ×</span></div><div class="content"><h1>Security without the scary bits.</h1><p>Check suspicious messages and make protected payment proposals. The bank policy—not this page—decides whether money can move.</p><a class="button" href="./login.html">🔒 Member login</a><a class="button" href="./signup.html">✦ Create account</a></div></section>
+  </main>
+  <footer class="taskbar"><span class="start">✦ cash_crash</span><span class="status"><i class="light"></i> Sign-in required</span></footer>
+  <script>
+    // Keep a reachable title-bar sliver on screen; header/taskbar intentionally remain above windows via z-index.
+    const win=document.querySelector('#welcome-window'),bar=win.querySelector('.bar');let drag=null;
+    bar.addEventListener('pointerdown',event=>{drag={x:event.clientX,y:event.clientY,left:win.offsetLeft,top:win.offsetTop};win.setPointerCapture(event.pointerId);});
+    bar.addEventListener('pointermove',event=>{if(!drag)return;const keep=72;const left=Math.min(innerWidth-keep,Math.max(-win.offsetWidth+keep,drag.left+event.clientX-drag.x));const top=Math.min(innerHeight-keep,Math.max(0,drag.top+event.clientY-drag.y));win.style.margin='0';win.style.position='absolute';win.style.left=left+'px';win.style.top=top+'px';});
+    bar.addEventListener('pointerup',()=>drag=null);bar.addEventListener('pointercancel',()=>drag=null);
+  </script>
+</body>
+</html>

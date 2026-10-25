@@ -346,6 +346,43 @@ class HttpTests(unittest.TestCase):
         self.assertEqual(declined.status_code, 404)
         self.assertTrue(session_id)
 
+    def test_a_customer_request_cannot_pretend_to_be_the_trusted_contact(self):
+        try:
+            from fastapi.testclient import TestClient
+            import server.main as main
+        except ImportError:
+            self.skipTest("httpx is not installed")
+        main.guardian = _guardian()
+        client = TestClient(main.app)
+        session_id = client.post("/session", json={"account_id": "acc-margaret"}).json()["session_id"]
+        proposal = _pay(
+            session_id,
+            proposal_id="web-high",
+            payee_id=None,
+            amount=900,
+            reference="",
+            band=RiskBand.HIGH,
+            final_risk=1.0,
+            text_risk=0.8,
+            rag_sim=0.8,
+            cited_card_id="account-locked",
+        )
+        held = main.guardian.apply(session_id, proposal)
+        self.assertEqual(held["verdict"], "HOLD")
+        spoof = client.post("/payments/web-high/decision", json={"approve": True, "channel": "trusted_contact"})
+        self.assertEqual(spoof.json()["verdict"], "HOLD")
+        bare = client.post("/payments/web-high/decision", json={"approve": True})
+        self.assertEqual(bare.json()["verdict"], "HOLD")
+        key = os.environ.get("TRUSTED_CONTACT_KEY") or os.environ.get("POLICY_SECRET") or "hacknotts-demo-policy"
+        released = client.post(
+            "/payments/web-high/decision",
+            json={"approve": True, "channel": "trusted_contact"},
+            headers={"X-Trusted-Contact": key},
+        )
+        self.assertEqual(released.json()["verdict"], "DENY")
+        self.assertEqual(released.json()["matched_policy"], "P1")
+        self.assertEqual(main.guardian.ledger.balance("acc-margaret"), 4200.0)
+
 
 def _models_ready() -> bool:
     folder = Path(__file__).resolve().parents[1] / "ml" / "models"

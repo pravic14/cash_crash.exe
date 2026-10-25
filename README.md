@@ -33,6 +33,10 @@ With three people: C's RAG cards stay in `rag/`, the quarantined parser folds in
 
 One pasted message goes through `Guardian.submit`: the sanitiser, then `assess_message` (retriever, parser, M1–M4), then `orchestrate` (policy). Only an ALLOW verdict debits the ledger, and only with a 30-second single-use token. The models and the LLM cannot approve a payment.
 
+Sign-in, balances, session facts, holds, and the chat transcript live in `server/data/guardian.sqlite`. `accounts.json` and `payees.json` are the seed and stay unchanged. The audit hash chain is a separate file, `server/data/audit.sqlite`, and it does not store the customer's words. The parser sees the new message only. A resumed session reloads the saved facts and the transcript.
+
+The pages are served by the same process: `/` , `/login`, `/signup`, and `/app`. Demo sign-in is `margaret@cashcrash.test` / `margaret-demo`. A HIGH hold can be declined on the customer page. Releasing it needs the header `X-Trusted-Contact` (see `.env.example`).
+
 ```powershell
 $env:PYTHONPATH = "."
 $env:LLM_MODE = "off"

@@ -1,16 +1,17 @@
 # web/ — D, Frontend
 
-Plain HTML/JS. Three pages. MSN Messenger / Windows XP styling is the 2000s theme prize, and it can wait until the flow works.
+Plain HTML/JS. The pink messenger is wired to this server. `ops.html` and `redteam.html` are not built yet.
 
-## Files to add
+## Pages
 
 | Path | Route | What it shows |
 | --- | --- | --- |
-| `app.html` | `/app` | Customer chat, plus a "paste a message you received" box. |
-| `ops.html` | `/ops` | Big-screen pipeline: each guard's verdict, lights, risk bars, RAG card cited, policy rule, audit chain, model metrics. Trusted-contact buttons that mirror the Pi. |
-| `redteam.html` | `/redteam` | QR code, attempts feed, leaderboard. Points for forcing a HOLD or evading a model. A bounty only for a real unauthorised payment. |
-| `css/` | | 2000s styling. Nokia-style beeps can live with the page. |
-| `js/` | | Page scripts. Talk to the server. Do not reimplement policy here. |
+| `index.html` | `/` | Landing page. Open messenger uses Margaret. |
+| `login.html` | `/login` | `POST /auth/login`. Demo: `margaret@cashcrash.test` / `margaret-demo`. |
+| `signup.html` | `/signup` | `POST /auth/signup`. Creates an account in `guardian.sqlite`. |
+| `app.html` | `/app` | One session. Every line is `POST /payments`. Transcript reloads from `GET /sessions/{id}/messages`. Text is written with `textContent`. |
+| `ops.html` | | Not built. Trusted-contact release is `POST /payments/{id}/decision` with header `X-Trusted-Contact`. |
+| `redteam.html` | | Not built. Points are `GET /scoring`. |
 
 ## Demo order (about 3 minutes)
 

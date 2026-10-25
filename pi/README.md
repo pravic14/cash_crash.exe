@@ -6,7 +6,7 @@ The Pi is a **WebSocket client**. The backend stays on the laptop. If the Pi die
 
 ## File to add
 
-`guardian_box.py` — gpiozero. Connects out to `server/ws.py`.
+`guardian_box.py` — gpiozero. Not built yet. It will connect out to `server/ws.py`. Decline and approve already work over HTTP: `POST /payments/{id}/decision`. Approving a HIGH hold also needs the header `X-Trusted-Contact`. The customer page cannot send that header.
 
 | Part | BCM pin |
 | --- | --- |

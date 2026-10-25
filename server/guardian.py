@@ -15,13 +15,14 @@ from pathlib import Path
 from rag.retriever import cite_policy
 from server.assess import assess_message
 from server.audit import AuditLog
-from server.ledger import Ledger, LedgerDenied, load_accounts, load_payees
+from server.ledger import Ledger, LedgerDenied, load_payees
 from server.llm import Explanation
 from server.orchestrator import Orchestrated, orchestrate
 from server.policy import Decision
 from server.scoring import RedTeam
 from server.sessions import Session, SessionBook
 from server.sanitiser import sanitise
+from server.store import Store
 from server.tokens import TokenBook
 from shared.schemas import IntentName, PaymentProposal, PolicyId, Verdict
 
@@ -46,23 +47,33 @@ class Guardian:
         secret: str | None = None,
         cooloff_seconds: int = COOLOFF_SECONDS,
         hold_ttl_seconds: int = HOLD_TTL_SECONDS,
+        store_path: Path | None = None,
     ) -> None:
-        self.accounts = load_accounts()
+        self.store = Store(store_path)
+        self.accounts = self.store.accounts
         self.payees = load_payees()
         self.tokens = TokenBook(secret or os.environ.get("POLICY_SECRET") or "hacknotts-demo-policy")
         self.ledger = Ledger(self.accounts, self.tokens)
         path = audit_path or (ROOT / "server" / "data" / "audit.sqlite")
         self.audit = AuditLog(path)
-        self.sessions = SessionBook()
-        self.scoring = RedTeam()
+        self.sessions = SessionBook(self.store)
+        self.scoring = RedTeam(**self.store.scores())
         self.cooloff_seconds = cooloff_seconds
         self.hold_ttl_seconds = hold_ttl_seconds
-        self.holds: dict[str, Hold] = {}
+        self.holds = {
+            item["proposal"].proposal_id: Hold(
+                item["proposal"],
+                item["created"],
+                item["approvals"],
+                item["requires_trusted_contact"],
+            )
+            for item in self.store.load_holds()
+        }
 
-    def open_session(self, account_id: str = "acc-margaret") -> str:
+    def open_session(self, account_id: str = "acc-margaret", resume: bool = False) -> str:
         if account_id not in self.accounts:
             raise KeyError(account_id)
-        return self.sessions.open(account_id).session_id
+        return self.sessions.open(account_id, resume=resume).session_id
 
     def apply(self, session_id: str, proposal: PaymentProposal, now: datetime | None = None) -> dict:
         """Policy and ledger only. Tests use this so a crafted proposal cannot skip the kernel."""
@@ -87,21 +98,24 @@ class Guardian:
                 now,
                 decision=Decision(Verdict.DENY, PolicyId.P1_SCHEMA, clean.rejected),
             )
-            return self._execute(session, outcome, now, trusted_override=False)
-        assessment = assess_message(
-            clean.text,
-            customer_id=session.account_id,
-            session_id=session.session_id,
-        )
-        outcome = orchestrate(
-            assessment.proposal,
-            assessment.explanation,
-            session,
-            self.accounts,
-            self.payees,
-            now,
-        )
-        return self._execute(session, outcome, now, trusted_override=False)
+        else:
+            assessment = assess_message(
+                clean.text,
+                customer_id=session.account_id,
+                session_id=session.session_id,
+            )
+            outcome = orchestrate(
+                assessment.proposal,
+                assessment.explanation,
+                session,
+                self.accounts,
+                self.payees,
+                now,
+            )
+        result = self._execute(session, outcome, now, trusted_override=False)
+        self.store.add_message(session.session_id, "you", text, None)
+        self.store.add_message(session.session_id, "guardian", _screen_text(result), result.get("verdict"))
+        return result
 
     def resolve(
         self,
@@ -188,6 +202,16 @@ class Guardian:
         else:
             self.holds.pop(proposal.proposal_id, None)
         self.scoring.note(decision.verdict, proposal.band, trusted_override, executed, executed)
+        self.store.save_scores(self.scoring.snapshot())
+        self.sessions.save(session)
+        self.store.save_accounts()
+        self.store.save_context(
+            session.session_id,
+            proposal,
+            decision.verdict.value if decision.verdict else None,
+            decision.matched_policy.value if decision.matched_policy else None,
+        )
+        self._sync_hold(proposal.proposal_id)
         self.audit.append(
             session.session_id,
             "ledger" if executed else "policy",
@@ -200,7 +224,9 @@ class Guardian:
                 "executed": executed,
             },
         )
-        return _body(session, proposal, decision, explanation, self.ledger, executed, self.scoring, self._cooloff_left(proposal.proposal_id, now))
+        body = _body(session, proposal, decision, explanation, self.ledger, executed, self.scoring, self._cooloff_left(proposal.proposal_id, now))
+        body["context"] = self.store.context(session.session_id)
+        return body
 
     def _hold_reply(self, session: Session, hold: Hold, now: datetime, reason: str) -> dict:
         decision = Decision(
@@ -209,7 +235,7 @@ class Guardian:
             reason,
             hold.requires_trusted_contact,
         )
-        return _body(
+        body = _body(
             session,
             hold.proposal,
             decision,
@@ -219,6 +245,15 @@ class Guardian:
             self.scoring,
             self._cooloff_left(hold.proposal.proposal_id, now),
         )
+        body["context"] = self.store.context(session.session_id)
+        return body
+
+    def _sync_hold(self, proposal_id: str) -> None:
+        hold = self.holds.get(proposal_id)
+        if hold is None:
+            self.store.delete_hold(proposal_id)
+            return
+        self.store.save_hold(hold.proposal, hold.created, hold.approvals, hold.requires_trusted_contact)
 
     def _cooloff_left(self, proposal_id: str, now: datetime) -> int:
         hold = self.holds.get(proposal_id)
@@ -272,6 +307,21 @@ def _body(
         "cooloff_remaining_seconds": cooloff_remaining_seconds,
         "scoring": scoring.snapshot(),
     }
+
+
+def _screen_text(result: dict) -> str:
+    explanation = result.get("explanation") or {}
+    if explanation.get("text"):
+        return explanation["text"]
+    parts = []
+    if result.get("verdict"):
+        policy = result.get("matched_policy")
+        parts.append(result["verdict"] + (f" ({policy})" if policy else ""))
+    if result.get("reason"):
+        parts.append(result["reason"])
+    if isinstance(result.get("balance"), (int, float)):
+        parts.append(f"Balance £{float(result['balance']):.2f}")
+    return ". ".join(parts) or "No payment was requested."
 
 
 def _clock(now: datetime | None) -> datetime:

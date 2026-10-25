@@ -9,7 +9,7 @@ You own this folder except `llm.py` and `assess.py`, which C adds here. Leave th
 1. `sanitiser.sanitise`
 2. `assess.assess_message` — retriever, quarantined parser, M1–M4
 3. `orchestrator.orchestrate` — seals the proposal and calls `policy.decide`
-4. ALLOW mints a token and `ledger.execute`. HOLD waits. DENY changes nothing.
+4. ALLOW mints a token and `ledger.execute`. HOLD waits 60 seconds. A customer can confirm P4 or P9 after that. Only a trusted contact can release P5. A hold expires after 10 minutes. DENY changes nothing.
 
 ## Files
 

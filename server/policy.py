@@ -1,7 +1,8 @@
 """G5 policy kernel. The only place a payment can be ALLOW, HOLD, or DENY.
 
-DENY wins over HOLD. A trusted-contact approve skips only P4 and P5.
-P6, P3, P2, P7, and P1 still deny. This module does not move money.
+DENY wins over HOLD. A customer approval can clear P4 and P9.
+Only a trusted contact can clear P5. P6, P3, P2, P7, and P1 still deny.
+A crash denies. This module does not move money.
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ class Decision:
     verdict: Verdict | None
     matched_policy: PolicyId | None
     reason: str
+    requires_trusted_contact: bool = False
 
 
 def decide(
@@ -31,10 +33,25 @@ def decide(
     payees: dict,
     now: datetime,
     payee_changed: bool = False,
-    trusted_override: bool = False,
+    approvals: frozenset[str] = frozenset(),
 ) -> Decision:
     """First matching hard rule. None means this was not a payment."""
 
+    try:
+        return _decide(proposal, session, accounts, payees, now, payee_changed, approvals)
+    except Exception:
+        return Decision(Verdict.DENY, PolicyId.P1_SCHEMA, "The policy check failed closed.")
+
+
+def _decide(
+    proposal: PaymentProposal,
+    session: Session,
+    accounts: dict,
+    payees: dict,
+    now: datetime,
+    payee_changed: bool,
+    approvals: frozenset[str],
+) -> Decision:
     if proposal.payer_account != session.account_id or proposal.session_id != session.session_id:
         return Decision(Verdict.DENY, PolicyId.P2_OWNER, "This session does not own that account.")
 
@@ -62,14 +79,20 @@ def decide(
     if limit_reason is not None:
         return Decision(Verdict.DENY, PolicyId.P3_LIMIT, limit_reason)
 
-    if payee_changed and session.saw_payment:
+    second = bool(approvals & {"customer", "trusted_contact"})
+    if payee_changed and session.saw_payment and not second:
         return Decision(Verdict.HOLD, PolicyId.P9_PAYEE_CHANGE, "Payee details changed during this session.")
 
-    if proposal.band == RiskBand.HIGH and not trusted_override:
-        return Decision(Verdict.HOLD, PolicyId.P5_HIGH_RISK, "Combined risk is HIGH. A trusted contact has to decide.")
+    if proposal.band == RiskBand.HIGH and "trusted_contact" not in approvals:
+        return Decision(
+            Verdict.HOLD,
+            PolicyId.P5_HIGH_RISK,
+            "Combined risk is HIGH. A trusted contact has to decide.",
+            True,
+        )
 
     if (
-        not trusted_override
+        not second
         and proposal.payee_id
         and _is_new(proposal.payee_id, session.account_id, payees)
         and proposal.amount > NEW_PAYEE_HOLD

@@ -44,6 +44,7 @@ class PaymentIn(BaseModel):
 
 class DecisionIn(BaseModel):
     approve: bool
+    channel: str = "trusted_contact"
 
 
 @app.get("/health")
@@ -73,7 +74,7 @@ async def pay(body: PaymentIn) -> dict:
 @app.post("/payments/{proposal_id}/decision")
 async def decide(proposal_id: str, body: DecisionIn) -> dict:
     try:
-        result = guardian.resolve(proposal_id, body.approve)
+        result = guardian.resolve(proposal_id, body.approve, channel=body.channel)
     except KeyError:
         raise HTTPException(status_code=404, detail="No held payment") from None
     await hub.broadcast(_light(result))

@@ -7,6 +7,8 @@ DENY changes nothing. The HTTP routes and the Pi both call this.
 from __future__ import annotations
 
 import os
+import re
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -24,10 +26,27 @@ from server.tokens import TokenBook
 from shared.schemas import IntentName, PaymentProposal, PolicyId, Verdict
 
 ROOT = Path(__file__).resolve().parents[1]
+COOLOFF_SECONDS = 60
+HOLD_TTL_SECONDS = 600
+_MARKUP = re.compile(r"[<>]")
+
+
+@dataclass
+class Hold:
+    proposal: PaymentProposal
+    created: datetime
+    approvals: set[str] = field(default_factory=set)
+    requires_trusted_contact: bool = False
 
 
 class Guardian:
-    def __init__(self, audit_path: Path | None = None, secret: str | None = None) -> None:
+    def __init__(
+        self,
+        audit_path: Path | None = None,
+        secret: str | None = None,
+        cooloff_seconds: int = COOLOFF_SECONDS,
+        hold_ttl_seconds: int = HOLD_TTL_SECONDS,
+    ) -> None:
         self.accounts = load_accounts()
         self.payees = load_payees()
         self.tokens = TokenBook(secret or os.environ.get("POLICY_SECRET") or "hacknotts-demo-policy")
@@ -36,7 +55,9 @@ class Guardian:
         self.audit = AuditLog(path)
         self.sessions = SessionBook()
         self.scoring = RedTeam()
-        self.holds: dict[str, PaymentProposal] = {}
+        self.cooloff_seconds = cooloff_seconds
+        self.hold_ttl_seconds = hold_ttl_seconds
+        self.holds: dict[str, Hold] = {}
 
     def open_session(self, account_id: str = "acc-margaret") -> str:
         if account_id not in self.accounts:
@@ -82,36 +103,61 @@ class Guardian:
         )
         return self._execute(session, outcome, now, trusted_override=False)
 
-    def resolve(self, proposal_id: str, approve: bool, now: datetime | None = None) -> dict:
-        """Trusted-contact decision for a payment already on HOLD."""
+    def resolve(
+        self,
+        proposal_id: str,
+        approve: bool,
+        now: datetime | None = None,
+        channel: str = "trusted_contact",
+    ) -> dict:
+        """A customer can confirm P4 or P9. Only a trusted contact can release P5."""
 
         now = _clock(now)
-        proposal = self.holds.get(proposal_id)
-        if proposal is None:
+        hold = self.holds.get(proposal_id)
+        if hold is None:
             raise KeyError(proposal_id)
-        session = self.sessions.get(proposal.session_id)
-        self.holds.pop(proposal_id, None)
-        if not approve:
+        session = self.sessions.get(hold.proposal.session_id)
+        age = (now - hold.created).total_seconds()
+        if age > self.hold_ttl_seconds:
+            self.holds.pop(proposal_id, None)
             outcome = orchestrate(
-                proposal,
+                hold.proposal,
                 None,
                 session,
                 self.accounts,
                 self.payees,
                 now,
-                decision=Decision(Verdict.DENY, proposal.matched_policy, "The trusted contact declined."),
+                decision=Decision(Verdict.DENY, hold.proposal.matched_policy, "The hold expired."),
             )
             return self._execute(session, outcome, now, trusted_override=False)
+        if not approve:
+            self.holds.pop(proposal_id, None)
+            who = "The customer declined." if channel == "customer" else "The trusted contact declined."
+            outcome = orchestrate(
+                hold.proposal,
+                None,
+                session,
+                self.accounts,
+                self.payees,
+                now,
+                decision=Decision(Verdict.DENY, hold.proposal.matched_policy, who),
+            )
+            return self._execute(session, outcome, now, trusted_override=False)
+        if channel not in {"customer", "trusted_contact"}:
+            return self._hold_reply(session, hold, now, "That approval channel is not recognised.")
+        if age < self.cooloff_seconds:
+            return self._hold_reply(session, hold, now, "This payment is still in the cooling-off period.")
+        hold.approvals.add(channel)
         outcome = orchestrate(
-            proposal,
+            hold.proposal,
             None,
             session,
             self.accounts,
             self.payees,
             now,
-            trusted_override=True,
+            approvals=frozenset(hold.approvals),
         )
-        return self._execute(session, outcome, now, trusted_override=True)
+        return self._execute(session, outcome, now, trusted_override=channel == "trusted_contact")
 
     def _execute(self, session, outcome: Orchestrated, now: datetime, trusted_override: bool) -> dict:
         proposal = outcome.proposal
@@ -119,6 +165,7 @@ class Guardian:
         explanation = outcome.explanation
         executed = False
         if decision.verdict == Verdict.ALLOW and proposal.intent == IntentName.PAY:
+            self.holds.pop(proposal.proposal_id, None)
             token = self.tokens.mint(proposal, now)
             try:
                 self.ledger.execute(proposal, token, now)
@@ -127,7 +174,19 @@ class Guardian:
                 decision = Decision(Verdict.DENY, exc.policy, exc.reason)
                 proposal = proposal.model_copy(update={"matched_policy": exc.policy})
         elif decision.verdict == Verdict.HOLD:
-            self.holds[proposal.proposal_id] = proposal
+            current = self.holds.get(proposal.proposal_id)
+            if current is None:
+                self.holds[proposal.proposal_id] = Hold(
+                    proposal,
+                    now,
+                    set(),
+                    decision.requires_trusted_contact,
+                )
+            else:
+                current.proposal = proposal
+                current.requires_trusted_contact = decision.requires_trusted_contact
+        else:
+            self.holds.pop(proposal.proposal_id, None)
         self.scoring.note(decision.verdict, proposal.band, trusted_override, executed, executed)
         self.audit.append(
             session.session_id,
@@ -141,7 +200,32 @@ class Guardian:
                 "executed": executed,
             },
         )
-        return _body(session, proposal, decision, explanation, self.ledger, executed, self.scoring)
+        return _body(session, proposal, decision, explanation, self.ledger, executed, self.scoring, self._cooloff_left(proposal.proposal_id, now))
+
+    def _hold_reply(self, session: Session, hold: Hold, now: datetime, reason: str) -> dict:
+        decision = Decision(
+            Verdict.HOLD,
+            hold.proposal.matched_policy,
+            reason,
+            hold.requires_trusted_contact,
+        )
+        return _body(
+            session,
+            hold.proposal,
+            decision,
+            None,
+            self.ledger,
+            False,
+            self.scoring,
+            self._cooloff_left(hold.proposal.proposal_id, now),
+        )
+
+    def _cooloff_left(self, proposal_id: str, now: datetime) -> int:
+        hold = self.holds.get(proposal_id)
+        if hold is None:
+            return 0
+        remaining = self.cooloff_seconds - (now - hold.created).total_seconds()
+        return max(0, int(remaining + 0.999))
 
 
 def _blank(session: Session) -> PaymentProposal:
@@ -161,11 +245,12 @@ def _body(
     ledger: Ledger,
     executed: bool,
     scoring: RedTeam,
+    cooloff_remaining_seconds: int = 0,
 ) -> dict:
     warning = None
     if explanation is not None and (decision.verdict == Verdict.HOLD or explanation.card_ids):
         warning = {
-            "text": explanation.text,
+            "text": _MARKUP.sub("", explanation.text),
             "card_ids": list(explanation.card_ids),
             "source": explanation.source,
         }
@@ -183,6 +268,8 @@ def _body(
         "proposal": proposal.model_dump(mode="json"),
         "explanation": warning,
         "policy": clause,
+        "requires_trusted_contact": decision.requires_trusted_contact,
+        "cooloff_remaining_seconds": cooloff_remaining_seconds,
         "scoring": scoring.snapshot(),
     }
 

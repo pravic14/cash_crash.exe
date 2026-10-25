@@ -39,7 +39,7 @@ def orchestrate(
     accounts: dict,
     payees: dict,
     now: datetime,
-    trusted_override: bool = False,
+    approvals: frozenset[str] = frozenset(),
     decision: Decision | None = None,
 ) -> Orchestrated:
     """Policy reads the sealed proposal. A HOLD with no warning gets the template."""
@@ -54,7 +54,7 @@ def orchestrate(
             payees,
             now,
             payee_changed=changed,
-            trusted_override=trusted_override,
+            approvals=approvals,
         )
         if proposal.intent == IntentName.PAY:
             session.saw_payment = True

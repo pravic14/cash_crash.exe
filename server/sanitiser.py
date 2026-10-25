@@ -11,7 +11,11 @@ MAX_CHARS = 2000
 _BASE64 = re.compile(r"(?<![A-Za-z0-9+/=])[A-Za-z0-9+/]{40,}={0,2}(?![A-Za-z0-9+/=])")
 _HEX = re.compile(r"(?<![A-Za-z0-9])(?:0x)?[0-9a-fA-F]{32,}(?![A-Za-z0-9])")
 _INSTRUCTION = re.compile(
-    r"ignore\s+(all\s+)?(previous|prior)\s+instructions|system\s*:|approve\s+all\s+payments|jailbreak",
+    r"ignore\s+(?:all\s+)?(?:previous|prior|your)?\s*instructions"
+    r"|forget\s+(?:all\s+)?(?:your\s+)?(?:commands|rules|instructions)"
+    r"|bypass\s+(?:all\s+)?(?:your\s+)?(?:guard\s*rails?|safety|rules)"
+    r"|disregard\s+(?:all\s+|your\s+)?(?:rules|instructions)"
+    r"|system\s*:|approve\s+all\s+payments|jailbreak",
     re.IGNORECASE,
 )
 

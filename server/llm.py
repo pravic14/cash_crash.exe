@@ -160,7 +160,27 @@ def parse_customer_text(text: str) -> ParseOutcome:
         intent = coerce_payload(raw)
     except ParseRejected as exc:
         return ParseOutcome(False, None, "llm", exc.reason)
-    return ParseOutcome(True, intent, "llm")
+    return ParseOutcome(True, _with_known_rent(text, intent), "llm")
+
+
+def _with_known_rent(text: str, intent: ParsedIntent) -> ParsedIntent:
+    """The word rent means City Lettings. A blank reference becomes RENT.
+
+    A named payee that is not the landlord is left alone. Safe-account
+    wording is left alone so a scam is not given a real payee.
+    """
+
+    hay = normalise(text).lower()
+    if "safe account" in hay or _payee_id(hay) != "payee-landlord":
+        return intent
+    if intent.payee_id and intent.payee_id != "payee-landlord":
+        return intent
+    return intent.model_copy(
+        update={
+            "payee_id": "payee-landlord",
+            "reference": intent.reference or _reference("payee-landlord"),
+        }
+    )
 
 
 def rule_parse(text: str) -> ParsedIntent:

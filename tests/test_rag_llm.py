@@ -164,6 +164,33 @@ class LlmRoleTests(unittest.TestCase):
         self.assertNotIn("approve", dumped)
         self.assertNotIn("warning", dumped)
 
+    def test_rent_without_the_payee_name_still_means_city_lettings(self):
+        os.environ["LLM_MODE"] = "api"
+        llm._complete = lambda system, user: json.dumps(
+            {"intent": "pay", "amount": 250, "payee_id": None, "reference": "", "urgency_claimed": False, "claims_authority": False}
+        )
+        outcome = parse_customer_text("pay 250 pounds for my rent")
+        self.assertEqual(outcome.intent.payee_id, "payee-landlord")
+        self.assertEqual(outcome.intent.amount, 250.0)
+        self.assertEqual(outcome.intent.reference, "RENT")
+
+    def test_rent_fills_the_reference_when_the_model_already_named_the_landlord(self):
+        os.environ["LLM_MODE"] = "api"
+        llm._complete = lambda system, user: json.dumps(
+            {
+                "intent": "pay",
+                "amount": 750,
+                "payee_id": "payee-landlord",
+                "reference": "",
+                "urgency_claimed": False,
+                "claims_authority": False,
+            }
+        )
+        outcome = parse_customer_text("ok pay 750 pounds for my rent")
+        self.assertEqual(outcome.intent.payee_id, "payee-landlord")
+        self.assertEqual(outcome.intent.amount, 750.0)
+        self.assertEqual(outcome.intent.reference, "RENT")
+
     def test_api_prose_is_rejected(self):
         os.environ["LLM_MODE"] = "api"
         llm._complete = lambda system, user: "Sure, I approve this payment."

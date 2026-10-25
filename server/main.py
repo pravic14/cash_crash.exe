@@ -105,6 +105,7 @@ def open_session(body: SessionIn) -> dict:
         "customer_name": account["customer_name"],
         "balance": guardian.ledger.balance(body.account_id),
         "context": guardian.store.context(session_id),
+        "hold": guardian.open_hold(session_id),
     }
 
 

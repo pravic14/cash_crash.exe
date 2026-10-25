@@ -100,6 +100,15 @@ def _decide(
         return Decision(Verdict.HOLD, PolicyId.P4_NEW_PAYEE, "A new payee above £250 is held.")
 
     if not proposal.payee_id:
+        # A cited scam card is not a real payee. Hold it.
+        # A plain payment with no destination still denies.
+        if "trusted_contact" not in approvals and proposal.cited_card_id:
+            return Decision(
+                Verdict.HOLD,
+                PolicyId.P5_HIGH_RISK,
+                "There is no saved payee, and this message is not proven safe. A trusted contact has to decide.",
+                True,
+            )
         return Decision(Verdict.DENY, PolicyId.P1_SCHEMA, "A payment needs a known payee.")
 
     return Decision(Verdict.ALLOW, None, "No hard rule matched.")

@@ -85,7 +85,8 @@ def assess_message(
         found,
         scored,
     )
-    explanation = explain_hits(found, proposal) if scored.band in _WARN else None
+    has_card = bool(found.hits)
+    explanation = explain_hits(found, proposal) if scored.band in _WARN and (has_card or scored.band == RiskBand.HIGH.value) else None
     return Assessment(
         accepted=outcome.accepted,
         parser_source=outcome.source,

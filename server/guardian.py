@@ -87,8 +87,9 @@ class Guardian:
         now = _clock(now)
         session = self.sessions.get(session_id)
         clean = sanitise(text)
-        self.audit.append(session.session_id, "sanitise", None, {"rejected": clean.rejected, "stripped_encoded": clean.stripped_encoded})
-        if clean.rejected:
+        self.audit.append(session.session_id, "sanitise", None, {"rejected": clean.rejected, "stripped_encoded": clean.stripped_encoded, "suspicious_instruction": "suspicious_instruction" in (clean.flags or [])})
+        if clean.rejected or "suspicious_instruction" in (clean.flags or []):
+            reason = clean.rejected or "That message tries to override the guardian. The payment is refused."
             outcome = orchestrate(
                 _blank(session),
                 None,
@@ -96,7 +97,7 @@ class Guardian:
                 self.accounts,
                 self.payees,
                 now,
-                decision=Decision(Verdict.DENY, PolicyId.P1_SCHEMA, clean.rejected),
+                decision=Decision(Verdict.DENY, PolicyId.P1_SCHEMA, reason),
             )
         else:
             assessment = assess_message(
@@ -254,6 +255,18 @@ class Guardian:
             self.store.delete_hold(proposal_id)
             return
         self.store.save_hold(hold.proposal, hold.created, hold.approvals, hold.requires_trusted_contact)
+
+    def open_hold(self, session_id: str) -> dict | None:
+        now = _clock(None)
+        for hold in self.holds.values():
+            if hold.proposal.session_id != session_id:
+                continue
+            return {
+                "proposal_id": hold.proposal.proposal_id,
+                "requires_trusted_contact": hold.requires_trusted_contact,
+                "cooloff_remaining_seconds": self._cooloff_left(hold.proposal.proposal_id, now),
+            }
+        return None
 
     def _cooloff_left(self, proposal_id: str, now: datetime) -> int:
         hold = self.holds.get(proposal_id)

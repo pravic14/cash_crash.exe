@@ -11,3 +11,5 @@ ml/models/**
 rag/index/attack_memory.npz
 .idea/
 .vscode/
+.env
+pi/.env

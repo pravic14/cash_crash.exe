@@ -31,9 +31,15 @@ With three people: C's RAG cards stay in `rag/`, the quarantined parser folds in
 
 ## RAG and the two LLM roles
 
-M1–M4 stay with the model owner in `ml/`. Retrieval and the LLM roles are in `rag/` and `server/llm.py`. `server/assess.py` is the join: one pasted message goes through the retriever, the parser, and `ml.inference.score_payment`. The explainer runs only when the band is MEDIUM or HIGH. `assess_message(...).envelope()` is the display-safe object for the response. It does not approve a payment.
+One pasted message goes through `Guardian.submit`: the sanitiser, then `assess_message` (retriever, parser, M1–M4), then `orchestrate` (policy). Only an ALLOW verdict debits the ledger, and only with a 30-second single-use token. The models and the LLM cannot approve a payment.
 
-Copy `.env.example` to `.env`. `LLM_MODE=api` calls Groq. The variables are `LLM_API_KEY` (or `GROQ_API_KEY`), `LLM_BASE_URL` (`https://api.groq.com/openai/v1`), and `LLM_MODEL`. `LLM_MODE=off` keeps the rule parser and the template. Neither role can approve a payment. `rag_sim` is the only score this side writes. The model owner fills `text_risk`, `txn_risk`, and `final_risk`.
+```powershell
+$env:PYTHONPATH = "."
+$env:LLM_MODE = "off"
+python -m uvicorn server.main:app --host 127.0.0.1 --port 8000
+```
+
+Copy `.env.example` to `.env`. `LLM_MODE=api` calls Groq. The variables are `LLM_API_KEY` (or `GROQ_API_KEY`), `LLM_BASE_URL` (`https://api.groq.com/openai/v1`), and `LLM_MODEL`. `LLM_MODE=off` keeps the rule parser and the template. Neither role can approve a payment.
 
 ## Run imports from this directory
 

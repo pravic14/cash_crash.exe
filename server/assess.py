@@ -2,10 +2,9 @@
 
 The LLM does not call the models. This function calls them, then calls the
 parser, then calls the explainer only when the band is MEDIUM or HIGH.
-Nothing here approves a payment. Policy still owns ALLOW, HOLD, and DENY.
-
-A reads assessment.envelope(). That object has the proposal scores and, when
-a warning is due, plain text plus card ids. It has no HTML and no raw message.
+Nothing here approves a payment. `server.guardian.submit` sends this
+proposal through `server.orchestrator` and then the policy kernel.
+The warning is plain text plus card ids. It has no HTML and no raw message.
 """
 
 from __future__ import annotations

@@ -1,14 +1,23 @@
 # server/ — A, Security core
 
-You own this folder except `llm.py`, which C adds here (quarantined parser, explainer, offline fallback). Leave that file to C.
+You own this folder except `llm.py` and `assess.py`, which C adds here. Leave those two files to C. They are already called by this pipeline.
 
-## Files to add
+## What runs
+
+`POST /payments` calls `Guardian.submit`:
+
+1. `sanitiser.sanitise`
+2. `assess.assess_message` — retriever, quarantined parser, M1–M4
+3. `orchestrator.orchestrate` — seals the proposal and calls `policy.decide`
+4. ALLOW mints a token and `ledger.execute`. HOLD waits. DENY changes nothing.
+
+## Files
 
 | File | Role |
 | --- | --- |
 | `main.py` | App entry. Wires the pipeline. |
 | `sanitiser.py` | G0. Unicode normalise, strip zero-width, detect base64/hex, length limits. |
-| `orchestrator.py` | Builds a `PaymentProposal` from a `ParsedIntent`. Never forwards raw text. |
+| `orchestrator.py` | Seals the scored proposal and calls `policy.decide`. Never forwards raw text. |
 | `policy.py` | G5. Final veto. ALLOW / HOLD / DENY from P1–P9 in `shared.schemas.PolicyId`. ALLOW mints a capability token (HMAC, args-bound, 30s, single use). |
 | `ledger.py` | Fictional accounts. `execute(proposal, token)` is the only mutation. Enforces P8. |
 | `audit.py` | SQLite hash chain (SHA-256), `verify_chain()`, per-session replay. |
@@ -18,9 +27,7 @@ You own this folder except `llm.py`, which C adds here (quarantined parser, expl
 | `assess.py` | **C owns this file.** Call `assess_message` for retrieval, the parser, and M1–M4. You still own the verdict. |
 | `data/` | Seed accounts and payees. IDs are already frozen for the demo. |
 
-## Pipeline you sit in the middle of
-
-Sanitiser → sentinel (B's models + C's retriever) → C's parser → your orchestrator → B's transaction guard and fusion → your policy kernel → ledger, or maker-checker (hold, cooling-off, customer re-confirm, Pi approve on HIGH) → policy checked again → ledger.
+A trusted-contact approve runs policy again. P4 and P5 can be released. P6, P3, P2, P7, and P1 still deny. The Pi listens on `/ws`. The HTTP decision route works when the Pi is unplugged.
 
 ## Demo accounts
 

@@ -33,7 +33,7 @@ from server.guardian import Guardian
 from server.ws import hub
 
 WEB = Path(__file__).resolve().parents[1] / "web"
-STORE = Path(__file__).resolve().parent / "data" / "guardian.sqlite"
+STORE = Path(os.environ.get("GUARDIAN_DB") or Path(__file__).resolve().parent / "data" / "guardian.sqlite")
 
 app = FastAPI(title="BreakMyAgent")
 app.add_middleware(

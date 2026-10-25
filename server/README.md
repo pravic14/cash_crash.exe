@@ -15,6 +15,7 @@ You own this folder except `llm.py`, which C adds here (quarantined parser, expl
 | `scoring.py` | Red Team points. HOLD escalation and a model evasion score; a bounty only if an unauthorised payment actually executes. |
 | `ws.py` | WebSocket the Pi connects to as a client. Dashboard buttons must work if the Pi is dead. |
 | `llm.py` | **C owns this file.** |
+| `assess.py` | **C owns this file.** Call `assess_message` for retrieval, the parser, and M1–M4. You still own the verdict. |
 | `data/` | Seed accounts and payees. IDs are already frozen for the demo. |
 
 ## Pipeline you sit in the middle of

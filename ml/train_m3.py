@@ -1,116 +1,114 @@
+"""M3 transaction anomaly.
+
+One IsolationForest per customer, fit on that customer's normal history only.
+The score is txn_risk in 0..1: how unusual the payment is versus that habit.
+"""
+
+from __future__ import annotations
+
 from pathlib import Path
 
 import joblib
+import numpy as np
 import pandas as pd
-
 from sklearn.ensemble import IsolationForest
 from sklearn.metrics import classification_report
-from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
-import numpy as np
+try:
+    from features import FEATURE_NAMES, featurize
+except ImportError:
+    from ml.features import FEATURE_NAMES, featurize
 
-data_file = Path(__file__).parent / "data" / "transactions.csv"
-
-data = pd.read_csv(data_file)
-
-print("Dataset shape:", data.shape)
-print("Available columns:", data.columns.tolist())
-
-data["timestamp"] = pd.to_datetime(data["timestamp"])
-
-data = data.sort_values(["customer_id", "timestamp"])
-
-data["hour"] = data["timestamp"].dt.hour
-
-data["is_overnight"] = ( (data["hour"] < 6) ).astype(int)
-
-data["amount_log"] = np.log1p(data["amount"])
-
-data["is_large_amount"] = ( data["amount"] > 1000 ).astype(int)
-
-data["average_amount"] = 0.0
-
-customer_averages = data.groupby("customer_id")["amount"].mean()
-
-data["average_amount"] = data["customer_id"].map(customer_averages)
-
-# Compare each payment with the customer's average
-data["amount_vs_average"] = (
-    data["amount"] / data["average_amount"]
-)
+ROOT = Path(__file__).resolve().parent
+DATA = ROOT / "data" / "transactions.csv"
+MODEL = ROOT / "models" / "m3_anomaly_model.joblib"
 
 
-features = [
-    "amount",
-    "is_new_payee",
-    "hour",
-    "is_overnight",
-    "is_large_amount",
-    "average_amount",
-    "amount_vs_average",
-]
-X = data[features]
-y = data["scenario_label"].map({
-    "normal": 0,
-    "suspicious": 1,
-})
-
-print("\nAverage transaction amount by scenario:")
-print(data.groupby("scenario_label")["amount"].describe())
-
-print("\nNew payee frequency by scenario:")
-print(
-    data.groupby("scenario_label")["is_new_payee"]
-    .value_counts(normalize=True)
-)
+def load_frame() -> pd.DataFrame:
+    frame = pd.read_csv(DATA)
+    frame["timestamp"] = pd.to_datetime(frame["timestamp"])
+    return frame.sort_values(["customer_id", "timestamp"])
 
 
-X_train, X_test, y_train, y_test = train_test_split(
-    X,
-    y,
-    test_size=0.3,
-    random_state=42,
-    stratify=y,
-)
+def balances(frame: pd.DataFrame) -> dict[str, float]:
+    try:
+        from gen_transactions import CUSTOMER_PROFILES
+    except ImportError:
+        from ml.gen_transactions import CUSTOMER_PROFILES
+
+    return {
+        customer: float(CUSTOMER_PROFILES[customer]["balance"])
+        for customer in frame["customer_id"].unique()
+    }
 
 
-
-scaler = StandardScaler()
-
-X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled = scaler.transform(X_test)
-
-
-
-model = IsolationForest(
-    n_estimators=100,
-    contamination="auto",
-    random_state=42,
-)
-
-model.fit(X_train_scaled)
-predictions = model.predict(X_test_scaled)
-predictions = (predictions == -1).astype(int)
-
-print("\nM3 Baseline Results")
-
-print(
-    classification_report(
-        y_test,
-        predictions,
-        labels=[0, 1],
-        target_names=["normal", "suspicious"],
-        zero_division=0,
-    )
-)
+def build_examples(frame: pd.DataFrame) -> pd.DataFrame:
+    known = balances(frame)
+    rows = []
+    for customer, group in frame.groupby("customer_id", sort=False):
+        habit: list[dict] = []
+        balance = known[customer]
+        for record in group.to_dict(orient="records"):
+            features = featurize(habit, record, balance)
+            features["customer_id"] = customer
+            features["label"] = 1 if record["scenario_label"] == "suspicious" else 0
+            rows.append(features)
+            if record["scenario_label"] == "normal":
+                habit.append(record)
+    return pd.DataFrame(rows)
 
 
-# Save them mods babes
-model_dir = Path(__file__).parent / "models"
-model_dir.mkdir(parents=True, exist_ok=True)
+def fit_customer(normal_rows: np.ndarray) -> tuple[IsolationForest, StandardScaler, np.ndarray]:
+    scaler = StandardScaler()
+    scaled = scaler.fit_transform(normal_rows)
+    model = IsolationForest(n_estimators=200, contamination="auto", random_state=42)
+    model.fit(scaled)
+    raw = -model.decision_function(scaled)
+    return model, scaler, np.sort(raw)
 
-joblib.dump(model, model_dir / "m3_anomaly_model.joblib")
-joblib.dump(scaler, model_dir / "m3_scaler.joblib")
 
-print("\nM3 model and scaler saved successfully!") 
+def risk_from_raw(raw: float, normal_raw: np.ndarray) -> float:
+    if len(normal_raw) == 0:
+        return 0.0
+    return float(np.mean(normal_raw <= raw))
+
+
+def main() -> None:
+    examples = build_examples(load_frame())
+    bundle: dict = {"customers": {}, "features": FEATURE_NAMES}
+    y_true = []
+    y_pred = []
+    for customer, group in examples.groupby("customer_id"):
+        normal = group[group["label"] == 0]
+        suspicious = group[group["label"] == 1]
+
+        train_normal = normal.sample(frac=0.7, random_state=42)
+        test_normal = normal.drop(train_normal.index)
+        model, scaler, normal_raw = fit_customer(train_normal[FEATURE_NAMES].to_numpy(dtype=float))
+
+        bundle["customers"][customer] = {
+            "model": model,
+            "scaler": scaler,
+            "normal_raw": normal_raw,
+        }
+
+        held = pd.concat([test_normal, suspicious], ignore_index=True)
+        scaled = scaler.transform(held[FEATURE_NAMES].to_numpy(dtype=float))
+        raw = -model.decision_function(scaled)
+        risks = np.array([risk_from_raw(value, normal_raw) for value in raw])
+        predictions = (risks >= 0.9).astype(int)
+        y_true.extend(held["label"].tolist())
+        y_pred.extend(predictions.tolist())
+
+    print(classification_report(y_true, y_pred, target_names=["normal", "suspicious"], zero_division=0))
+    negatives = [index for index, label in enumerate(y_true) if label == 0]
+    fpr = sum(y_pred[index] == 1 for index in negatives) / len(negatives)
+    print("False positive rate on normal payments at txn_risk >= 0.9:", round(fpr, 3))
+    MODEL.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(bundle, MODEL)
+    print("Model saved to:", MODEL)
+
+
+if __name__ == "__main__":
+    main()

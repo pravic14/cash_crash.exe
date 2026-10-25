@@ -31,7 +31,24 @@ Generator plus an M2 and M3 baseline, before the LLM is wired. Policy-only must 
 
 ## Transaction generator
 
-`gen_transactions.py` creates synthetic transaction data for five customers.
+`gen_transactions.py` creates synthetic transaction data for five customers, including `acc-margaret`.
 It generates 270 normal and 30 suspicious transactions for each customer.
-The transactions are saved to `data/transactions.csv` with useful labels.
+Margaret's rent to `payee-landlord` stays near £750. Suspicious payees include `payee-mule`.
+The transactions are saved to `data/transactions.csv`.
 Run `python ml/gen_transactions.py` to generate the dataset and print a summary.
+
+## Train and score
+
+From the repo root, after `pip install -r requirements.txt`:
+
+```powershell
+python ml/gen_transactions.py
+python ml/test_gen.py
+python ml/train_m1.py
+python ml/train_m2.py
+python ml/train_m3.py
+python ml/train_fusion.py
+python ml/inference.py
+```
+
+`inference.score_payment(...)` returns `injection_p`, `scam_p`, `text_risk`, `txn_risk`, `rag_sim`, `final_risk`, and `band` (`LOW`, `MEDIUM`, `HIGH`). `server.assess.assess_message` passes `rag_sim` in from the retriever. The function does not call the LLM and does not approve a payment. Models are saved under `ml/models/`, which git ignores.

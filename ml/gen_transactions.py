@@ -19,8 +19,8 @@ CUSTOMERS = [
     "acc-mary",
 ]
 
-TRANSACTIONS_PER_CUSTOMER = 1000
-SUSPICIOUS_PER_CUSTOMER = 200
+TRANSACTIONS_PER_CUSTOMER = 300
+SUSPICIOUS_PER_CUSTOMER = 30
 
 
 
@@ -62,6 +62,7 @@ NEW_PAYEES = [
 
 
 SUSPICIOUS_PAYEES = [
+    "payee-mule",
     "payee-mule-001",
     "payee-mule-002",
     "payee-liquidator-001",
@@ -131,22 +132,27 @@ CUSTOMER_PROFILES = {
     "acc-margaret": {
         "usual_amount": (15, 120),
         "large_amount": (500, 1100),
+        "balance": 4200.0,
     },
     "acc-megan": {
         "usual_amount": (10, 180),
         "large_amount": (400, 1600),
+        "balance": 2500.0,
     },
     "acc-kenneth": {
         "usual_amount": (20, 250),
         "large_amount": (700, 2200),
+        "balance": 8000.0,
     },
     "acc-michael": {
         "usual_amount": (5, 100),
         "large_amount": (300, 900),
+        "balance": 1500.0,
     },
     "acc-mary": {
         "usual_amount": (15, 200),
         "large_amount": (600, 1800),
+        "balance": 5000.0,
     },
 }
 
@@ -185,6 +191,9 @@ def generate_normal_transaction(rng, customer, transaction_id):
     if payee == "payee-employer":
         amount = round(rng.uniform(1800, 3000), 2)
 
+    elif payee == "payee-landlord" and customer == "acc-margaret":
+        amount = round(rng.uniform(740, 760), 2)
+
     elif payee == "payee-landlord":
         amount = round(rng.uniform(450, 1200), 2)
 
@@ -202,6 +211,8 @@ def generate_normal_transaction(rng, customer, transaction_id):
 
     
     timestamp = random_timestamp(rng)
+    message = "Monthly rent" if payee == "payee-landlord" else rng.choice(NORMAL_REFERENCES)
+    reference = "RENT" if payee == "payee-landlord" else message[:18]
 
     return {
         "customer_id": customer,
@@ -210,7 +221,8 @@ def generate_normal_transaction(rng, customer, transaction_id):
         "amount": amount,
         "payee_id": payee,
         "is_new_payee": is_new_payee,
-        "reference": rng.choice(NORMAL_REFERENCES),
+        "reference": reference,
+        "message": message,
         "scenario_label": "normal",
     }
 
@@ -278,7 +290,8 @@ def generate_suspicious_transaction(rng, customer, transaction_id):
         "amount": amount,
         "payee_id": payee,
         "is_new_payee": is_new_payee,
-        "reference": rng.choice(SUSPICIOUS_REFERENCES),
+        "reference": "URGENT"[:18],
+        "message": rng.choice(SUSPICIOUS_REFERENCES),
         "scenario_label": "suspicious",
     }
 
@@ -339,6 +352,7 @@ def save_transactions(transactions):
         "payee_id",
         "is_new_payee",
         "reference",
+        "message",
         "scenario_label",
     ]
 

@@ -1,0 +1,52 @@
+label,message
+scam,HMRC: Your account is compromised. Move £2,400 to a safe account immediately.
+scam,This is HMRC. Move your money to a safe account or the account will be frozen.
+scam,Your tax refund is waiting. Click here and enter your card details.
+scam,Outstanding tax is overdue. Pay immediately to the account we name or a warrant will be issued.
+scam,This is your bank fraud team. There is unusual activity and you must move the money now.
+scam,This is the police. Do not tell the bank. Move the funds for an undercover operation.
+scam,Royal Mail: pay the customs fee to release your parcel.
+scam,DPD redelivery fee is unpaid. Pay now or the parcel is returned.
+scam,We met online. I need money for a ticket so I can visit you.
+scam,Buy gift cards and read me the codes. I cannot meet this week.
+scam,Our bank details have changed. Please use this account instead for the invoice.
+scam,The sort code has changed. Pay the updated invoice today.
+scam,The chief executive needs an urgent wire. Do not discuss this with anyone.
+scam,Your grandchild has been in an accident and needs bail. Do not tell mum.
+scam,Hi mum, this is my new number. Can you send money now?
+scam,Microsoft support: your computer is infected. Install AnyDesk so we can fix it.
+scam,Guaranteed return if you send the crypto wallet transfer today.
+scam,A refund was sent in error. Please return the difference to this account.
+scam,TV Licensing: a van is in your area. Pay the fine from this text.
+scam,Ofgem energy rebate. Enter your card details to receive it.
+scam,Student loan refund is waiting. Pay a fee today to release it.
+scam,DWP cost of living payment is waiting. Pay a small fee to release it.
+scam,Read me the one-time code we just sent. It stops a fraud on your account.
+scam,Share your screen and I will move the money for you.
+scam,Pay the training fee before you start the job.
+scam,Parking fine. Scan the QR code and pay the charge now.
+scam,Use your account to receive money and forward it. Keep a commission.
+scam,Your account will be locked in 10 minutes. Verify now through this link.
+scam,A courier will collect the cash. Stay on the phone until they arrive.
+scam,Move funds to a protected account. Your savings are at risk.
+scam,Security team requests an immediate transfer to a safe account.
+ham,Pay £750 rent to City Lettings.
+ham,Monthly rent to City Lettings has been paid.
+ham,Your balance is £4,200.
+ham,Card payment at the supermarket for £42.10.
+ham,Direct debit for the electricity bill.
+ham,Salary has been paid into your account.
+ham,Weekly shopping at the grocery store.
+ham,Pharmacy payment of £8.40.
+ham,Coffee shop payment of £3.20.
+ham,Gym membership direct debit.
+ham,Mobile bill paid.
+ham,Internet bill paid.
+ham,Water bill paid.
+ham,Insurance payment collected.
+ham,University fees instalment paid.
+ham,Family support transfer to a saved payee.
+ham,Restaurant card payment of £28.
+ham,What is my balance?
+ham,Show my recent transactions.
+ham,Thanks, the rent went through.

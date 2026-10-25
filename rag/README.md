@@ -15,13 +15,15 @@ M1–M4 stay in `ml/`. This folder does not train them.
 | `retriever.py` | R1. Writes `rag_sim` and a card id. The ML teammate folds `rag_sim` into `text_risk` and fusion. |
 | `attack_memory.py` | Past attacks as a vector plus a label (`scam`, `injection`, `legit`). The message is not stored. Only `scam` and `injection` can raise `rag_sim`. |
 | `server/llm.py` | Quarantined parser and explainer. |
+| `server/assess.py` | Calls the retriever, the parser, and the four models. Explains only on MEDIUM or HIGH. |
 
 From the repo root, with `LLM_MODE` unset or `off`:
 
 ```powershell
 $env:PYTHONPATH = "."
 python -m server.llm
-python -m unittest tests.test_rag_llm
+python -m server.assess
+python -m unittest tests.test_rag_llm tests.test_assess
 python -m rag.build_index
 ```
 

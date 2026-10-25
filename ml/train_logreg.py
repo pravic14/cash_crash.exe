@@ -1,3 +1,5 @@
+"""Supervised baseline on the transaction table. The fusion model is train_fusion.py."""
+
 from pathlib import Path
 import joblib 
 import pandas as pd 
